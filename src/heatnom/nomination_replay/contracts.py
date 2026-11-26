@@ -65,3 +65,33 @@ class Validation:
                                        for b in self.adjustment.buckets],
                 'holdout': self.holdout_metrics, 'regions': self.regions,
                 'excluded': dict(self.excluded)}
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayShift:
+    """按决策时点冻结的当班购热量回放。"""
+
+    asof: int
+    train_end: int
+    calibration_end: int
+    holdout_end: int
+    nominated_quantity: float
+    visible_matured: int
+    late_actual_keys: tuple[str, ...]
+    late_actual_count: int
+    global_radius: float
+    local_bands: tuple[dict, ...]
+    nominated_by_region: dict
+    model_signature: str
+
+    def view(self) -> dict:
+        return {'asof': self.asof, 'windows': {'train_end': self.train_end,
+                                                'calibration_end': self.calibration_end,
+                                                'holdout_end': self.holdout_end},
+                'nominated_quantity': self.nominated_quantity,
+                'nominated_by_region': self.nominated_by_region,
+                'visible_matured': self.visible_matured,
+                'late_actual_count': self.late_actual_count,
+                'late_actual_keys': list(self.late_actual_keys),
+                'global_radius': self.global_radius, 'local_bands': list(self.local_bands),
+                'model_signature': self.model_signature}

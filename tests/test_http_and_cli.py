@@ -67,3 +67,18 @@ def test_import_and_json_pagination(source_bytes,tmp_path):
         key=cases['items'][1]['key']
         assert web.get(f'/api/decisions/{key}').json()==cases['items'][1]
         assert web.get('/api/decisions/missing').status_code==404
+
+
+def test_cold_wave_policy_payload_and_interruptible_switch(tmp_path):
+    with TestClient(application(feed(),tmp_path)) as web:
+        normal=web.post('/api/scenario',json={'budget':400}).json()['result']
+        assert set(normal['cold_wave']) >= {'detected','reason','ambient_threshold'}
+        assert normal['local_bands'] and normal['analog_evidence']
+        assert normal['shift_replay']['nominated_quantity'] >= 0
+        assert normal['cover_ledger']['storage_total'] >= 0
+        stopped=web.post('/api/scenario',json={'budget':400,'interruptible_off':True}).json()['result']
+        assert stopped['scenario']['interruptible_off'] is True
+        assert stopped['ledger']['booked_units'] <= normal['ledger']['booked_units']
+        for verdict in stopped['nomination_policy']:
+            assert verdict['confirmed_units'] <= verdict['minimum']
+        assert web.post('/api/scenario',json={'budget':10,'interruptible_off':'no'}).status_code==422

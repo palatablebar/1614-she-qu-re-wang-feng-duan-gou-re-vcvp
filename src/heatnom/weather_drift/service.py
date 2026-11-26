@@ -4,10 +4,11 @@ from ..nomination_replay.contracts import Validation
 from ..degree_features.contracts import Prepared, SignalFlag
 from ..settings import SIGNAL_NAMES
 from .contracts import MarketShift, Readiness
-from .distribution import draw
+from .distribution import cold_wave, draw
 
 
-def judge(live_count: int, rejected: int, psi_spikes: int, history_count: int, calibrated: int) -> tuple[Readiness, tuple[str,...]]:
+def judge(live_count: int, rejected: int, psi_spikes: int, history_count: int, calibrated: int,
+          cold_detected: bool = False) -> tuple[Readiness, tuple[str,...]]:
     reasons = []
     if not live_count:
         return Readiness.BLOCK, ('决策窗内没有当班单据',)
@@ -19,6 +20,8 @@ def judge(live_count: int, rejected: int, psi_spikes: int, history_count: int, c
         reasons.append('两个以上特征分布越过观察线')
     if rejected:
         reasons.append('存在缺测、新片区或超出拟合支撑的单据')
+    if cold_detected:
+        reasons.append('历史样本分布偏暖，寒潮班次模型预测可能失真')
     if live_count < 5:
         reasons.append('当前窗口样本稀疏，分布指标仅供观测')
     return (Readiness.REVIEW if reasons else Readiness.READY), tuple(reasons)
@@ -33,7 +36,9 @@ def drift(train: tuple[Prepared,...], incoming: tuple[Prepared,...], validation:
     bands = tuple(draw(name,index,eligible_train,known) for index,name in enumerate(SIGNAL_NAMES))
     flagged = sum(not item.can_score() for item in incoming)
     levels = sum(axis.psi > .58 for axis in bands)
-    phase,reasons = judge(len(incoming),flagged,levels,validation.holdout_metrics['count'],validation.adjustment.samples)
+    cold = cold_wave(train, incoming)
+    phase,reasons = judge(len(incoming),flagged,levels,validation.holdout_metrics['count'],
+                          validation.adjustment.samples,cold.detected)
     cohorts: dict[str,list[Prepared]] = defaultdict(list)
     for signal in incoming:
         cohorts[signal.record.region].append(signal)
@@ -41,4 +46,5 @@ def drift(train: tuple[Prepared,...], incoming: tuple[Prepared,...], validation:
                       'missing_items':sum(bool(item.missing) for item in rows),
                       'replay_support':validation.regions.get(name,{}).get('count',0)}
                for name,rows in sorted(cohorts.items())}
-    return MarketShift(len(incoming),dict(unknown),dict(missing),regions,dict(warning_counts),bands,phase,reasons)
+    return MarketShift(len(incoming),dict(unknown),dict(missing),regions,dict(warning_counts),bands,
+                       phase,reasons,cold)

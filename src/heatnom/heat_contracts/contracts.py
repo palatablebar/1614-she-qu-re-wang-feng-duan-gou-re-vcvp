@@ -19,6 +19,7 @@ class Scenario:
     region: str | None = None
     start: int = 360
     stop: int = 1005
+    interruptible_off: bool = False
 
     def __post_init__(self) -> None:
         if (type(self.budget) is not int or type(self.reserve) is not int or
@@ -26,6 +27,8 @@ class Scenario:
             raise ValueError('预算与预留须为整数，且在 0 至 10000 之间')
         if type(self.start) is not int or type(self.stop) is not int or not 0 <= self.start < self.stop <= 1440:
             raise ValueError('服务窗口起止不合法')
+        if type(self.interruptible_off) is not bool:
+            raise ValueError('可中断合同全停标记须为布尔值')
 
     @property
     def spendable(self) -> int:

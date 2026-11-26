@@ -27,6 +27,7 @@ def parser() -> ArgumentParser:
         params.add_argument('--start',type=int,default=360)
         params.add_argument('--stop',type=int,default=1005)
         params.add_argument('--asof',type=int,default=126)
+        params.add_argument('--interruptible-off',action='store_true',help='可中断合同全停，仅兑现保供')
         if name=='manifest':
             params.add_argument('--output',type=Path)
         if name=='publish':
@@ -61,7 +62,8 @@ def run(argv=None) -> int:
             proposed = Scenario(args.to_budget,args.reserve,args.region)
             print(as_json(inspect_tradeoff(load_path(args.source),original,proposed)))
             return 0
-        scenario = Scenario(args.budget,args.reserve,args.region,args.start,args.stop)
+        scenario = Scenario(args.budget,args.reserve,args.region,args.start,args.stop,
+                            args.interruptible_off)
         result = preview(load_path(args.source),scenario,Windows(asof=args.asof))
         if args.command=='publish':
             if args.id!=result.identifier:

@@ -23,9 +23,10 @@ class WhatIf(BaseModel):
     region: str | None = Field(None,max_length=28)
     start: int = Field(360,ge=0,le=1439,strict=True)
     stop: int = Field(1005,gt=0,le=1440,strict=True)
+    interruptible_off: bool = Field(False,strict=True)
 
     def scenario(self) -> Scenario:
-        return Scenario(self.budget,self.reserve,self.region,self.start,self.stop)
+        return Scenario(self.budget,self.reserve,self.region,self.start,self.stop,self.interruptible_off)
 
 
 class Comparison(BaseModel):
@@ -106,7 +107,8 @@ def application(feed: Path | None = None, directory: Path | None = None) -> Fast
     @app.get('/api/replay',tags=['模型证据'])
     def replay():
         plan = app.state.default.payload
-        return {'windows':plan['cohorts'],'summary':plan['replay'],'observed':plan['holdout_points']}
+        return {'windows':plan['cohorts'],'summary':plan['replay'],'observed':plan['holdout_points'],
+                'shift_replay':plan['shift_replay'],'local_bands':plan['local_bands']}
 
     @app.get('/api/model',tags=['模型证据'])
     def model():

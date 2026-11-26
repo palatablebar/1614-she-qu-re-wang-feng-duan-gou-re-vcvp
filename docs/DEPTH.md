@@ -14,6 +14,10 @@ AI/ML / 传统ML · 中型
 | M6 | `weather_drift` | 识别缺测、未建档与分布变动 | `src/heatnom/weather_drift/contracts.py` `src/heatnom/weather_drift/distribution.py` `src/heatnom/weather_drift/service.py` | `tests/test_weather_drift.py` |
 | M7 | `heat_contracts` | 按业务规则锁定和分派资源 | `src/heatnom/heat_contracts/contracts.py` `src/heatnom/heat_contracts/domain.py` `src/heatnom/heat_contracts/service.py` | `tests/test_heat_contracts.py` |
 | M8 | `grid_settlement` | 按版本发布、导出、回查与对账 | `src/heatnom/grid_settlement/contracts.py` `src/heatnom/grid_settlement/storage.py` `src/heatnom/grid_settlement/service.py` | `tests/test_grid_settlement.py` |
+| M9 | `analog_evidence` | 外片区相近天气实测补证 | `src/heatnom/analog_evidence/contracts.py` `src/heatnom/analog_evidence/service.py` | `tests/test_analog_evidence.py` |
+| M10 | `nomination_policy` | 本片区误差带、缓报裁决与保证量去重 | `src/heatnom/nomination_policy/contracts.py` `src/heatnom/nomination_policy/service.py` | `tests/test_nomination_policy.py` |
+| M11 | `weather_drift` 寒潮判定 | 识别历史偏暖分布 | `src/heatnom/weather_drift/distribution.py` `src/heatnom/weather_drift/service.py` | `tests/test_cold_wave.py` |
+| M12 | `nomination_replay` 时点回放 | 还原当班购热量、隔离迟到实测 | `src/heatnom/nomination_replay/replay_shift.py` | `tests/test_replay_shift.py` |
 
 ## 高风险边界
 
@@ -29,3 +33,8 @@ AI/ML / 传统ML · 中型
 | TRAP-44 | 未建档片区会拒识，异常流量高时禁止发布 | `src/heatnom/weather_drift/service.py` | `tests/test_weather_drift.py::test_unseen_blocks_when_majority` |
 | TRAP-53 | 批中相邻样本不改变单条评分 | `src/heatnom/intertie_demand/service.py` | `tests/test_intertie_demand.py::test_point_invariance` |
 | TRAP-54 | 账簿参数变化会改变模型摘要并重算 | `src/heatnom/intertie_demand/service.py` | `tests/test_intertie_demand.py::test_fitted_signature_tracks_source` |
+| TRAP-61 | 外片区旁证样本不足或片区单一时只能留档不能定量 | `src/heatnom/analog_evidence/service.py` | `tests/test_analog_evidence.py::test_supported_analog_requires_enough_cases_and_two_donor_regions` |
+| TRAP-62 | 误差带跨过最小申报量时只保下限、差额缓报 | `src/heatnom/nomination_policy/service.py` | `tests/test_nomination_policy.py::test_band_crossing_minimum_holds_the_uncertain_top_slice` |
+| TRAP-63 | 可中断合同全停仍兑现保供、可中断量全缓 | `src/heatnom/nomination_policy/service.py` | `tests/test_nomination_policy.py::test_interruptible_shutdown_keeps_firm_minimum_but_holds_flexible_volume` |
+| TRAP-64 | 储热与热源保证量跨单据各只占一次 | `src/heatnom/nomination_policy/service.py` | `tests/test_nomination_policy.py::test_cover_ledger_counts_each_guarantee_pool_only_once` |
+| TRAP-65 | 迟到实测不改变当班回放购热量 | `src/heatnom/nomination_replay/replay_shift.py` | `tests/test_replay_shift.py::test_late_actuals_are_hidden_from_current_shift` |

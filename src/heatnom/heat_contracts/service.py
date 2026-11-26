@@ -14,20 +14,26 @@ def draft(signal: Prepared,value: float | None,radius: float) -> Draft:
     if signal.record.hold == Hold.CHAIN:
         return Draft(signal,Disposition.MANUAL,0,0,1,0,0,'缺少上游签收或现场手续','')
     if value is None:
-        return Draft(signal,Disposition.MANUAL,0,0,1,0,0,'模型无法覆盖当前输入','')
+        # 模型无法覆盖（偏暖分布/未建档/越支撑）不直接转人工：
+        # 交给申报裁决，由外片区相近天气补证决定保供量，补证不足再缓报。
+        return interpret(signal,0.0,radius,manual=True)
     return interpret(signal,value,radius)
 
 
-def quantity(candidate: Draft, allowance: int, other: int, scenario: Scenario) -> int:
-    cap = min(allowance,candidate.units)
+def quantity(candidate: Draft, allowance: int, other: int, scenario: Scenario,
+             cap: int | None = None) -> int:
+    bound = candidate.units if cap is None else min(candidate.units, cap)
+    bound = min(allowance, bound)
     if PLACEMENT_MODE == 'stock_family':
         family_stock = (scenario.spendable+1)//2
-        cap = min(cap,max(0,family_stock-other))
-    rounded = cap - cap%candidate.step
+        bound = min(bound,max(0,family_stock-other))
+    rounded = bound - bound%candidate.step
     return rounded if rounded>=candidate.minimum else 0
 
 
-def allocate(items: tuple[Candidate,...], scenario: Scenario) -> Schedule:
+def allocate(items: tuple[Candidate,...], scenario: Scenario,
+             caps: dict[str,int] | None = None) -> Schedule:
+    caps = caps or {}
     decisions: dict[str,Booking] = {}
     staged: list[Candidate] = []
     for item in items:
@@ -37,7 +43,8 @@ def allocate(items: tuple[Candidate,...], scenario: Scenario) -> Schedule:
             continue
         if record.key in decisions or any(prior.draft.signal.record.key == record.key for prior in staged):
             raise ValueError('同一调度单据重复')
-        if plan.state == Disposition.BOOKED:
+        # 模型不可用的单据默认人工；若申报裁决给出正的可确认量，则按保供单进入排队。
+        if plan.state == Disposition.BOOKED or (plan.state == Disposition.MANUAL and caps.get(record.key, 0) > 0):
             staged.append(item)
         else:
             decisions[record.key] = Booking(item,plan.state,0,None,None,plan.why)
@@ -48,7 +55,14 @@ def allocate(items: tuple[Candidate,...], scenario: Scenario) -> Schedule:
     resource_use: Counter = Counter()
     schedules: set[tuple] = set()
     served = set()
-    ordered = packing_order(staged,PLACEMENT_MODE)
+    # 保供责任优先：只确认到保供下限的单据（含外片区补证核准的人工单）先排队，
+    # 避免可中断补量先占满预算、已确认保供反而落空。
+    def assurance(item: Candidate) -> int:
+        cap = caps.get(item.draft.signal.record.key)
+        return 0 if cap is not None and 0 < cap <= item.draft.minimum else 1
+
+    base_order = packing_order(staged, PLACEMENT_MODE)
+    ordered = sorted(base_order, key=lambda item: (assurance(item), base_order.index(item)))
     if PLACEMENT_MODE == 'station_fair':
         first_in_region, followups = [], []
         for option in ordered:
@@ -61,7 +75,7 @@ def allocate(items: tuple[Candidate,...], scenario: Scenario) -> Schedule:
         ticket = plan.signal.record
         physical = (ticket.region,ticket.pool)
         identity = (*physical,plan.resource) if SEPARATE_CONTEXTS else physical
-        amount = quantity(plan,remaining,resource_use[plan.resource],scenario)
+        amount = quantity(plan,remaining,resource_use[plan.resource],scenario,caps.get(ticket.key))
         slot = cursor.seek(plan,scenario,PLACEMENT_MODE)
         if not amount:
             reason = '剩余资源量不足以完成最小作业单元'

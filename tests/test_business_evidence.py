@@ -61,8 +61,12 @@ def test_coverage_shows_unfamiliar_region_has_no_historical_support(source_bytes
     view=preview(source_bytes,Scenario(DEFAULT_BUDGET)).payload
     checked=confidence(view['decisions'],prepared.replay.points)
     unknown=next(row for row in checked['regional_coverage'] if row['region']=='试点点位-未建档')
-    assert unknown['cases']['manual']>0
+    # 未建档片区没有本片区历史回放支撑；即使外片区补证核准了保供量，也不能伪造本地标签证据。
     assert unknown['raw_holdout_deviation'] is None and unknown['label_support'] is None
+    assert unknown['matured']==0 and unknown['censored']==0
+    case = next(item for item in view['decisions'] if item['region']=='试点点位-未建档')
+    assert case['analog_evidence']['status']=='supported'
+    assert case['nomination_policy']['evidence']=='analog'
 
 
 def test_signal_pattern_should_tie_to_reported_missing(prepared):
